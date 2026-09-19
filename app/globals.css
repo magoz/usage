@@ -176,19 +176,11 @@ p {
   transition: width 400ms ease;
 }
 
-.section-row {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 40px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
 .accounts {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
-  margin-top: 16px;
+  margin-top: 40px;
 }
 
 .account {

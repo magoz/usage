@@ -207,11 +207,6 @@ export function UsageDashboard({ initialSnapshot }: Readonly<{ initialSnapshot: 
             ))}
           </section>
 
-          <div className="section-row">
-            <span>Accounts</span>
-            <span>Allowance remaining</span>
-          </div>
-
           <section className="accounts" aria-label="Accounts">
             {pools.flatMap((pool) =>
               pool.accounts.map((account) => (
