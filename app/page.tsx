@@ -5,7 +5,7 @@ import { getUsageSnapshot } from "@/lib/usage/service";
 
 async function DashboardContent() {
   await connection();
-  const snapshot = await getUsageSnapshot();
+  const snapshot = await getUsageSnapshot({ force: true });
 
   return <UsageDashboard initialSnapshot={snapshot} />;
 }
