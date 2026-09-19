@@ -330,3 +330,10 @@ p {
     animation: none !important;
   }
 }
+
+.updated {
+  margin-top: 40px;
+  color: var(--faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}

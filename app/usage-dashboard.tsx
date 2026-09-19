@@ -30,6 +30,14 @@ const formatCountdown = (target: string | null, now: number) => {
   return `${mins} min`;
 };
 
+const formatAge = (iso: string, now: number) => {
+  const minutes = Math.floor((now - Date.parse(iso)) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours} hr` : `${Math.floor(hours / 24)} d`;
+};
+
 const primaryWindow = (account: UsageAccount): UsageWindow | undefined =>
   account.windows.find((window) => window.durationMinutes === 10_080) ?? account.windows[0];
 
@@ -89,8 +97,11 @@ function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: nu
           <p className="account-plan">
             <span className="account-plan-name">{account.plan ?? account.providerName}</span>
             {account.primary ? <span className="account-note"> · pool first</span> : null}
-            {account.status !== "fresh" ? (
-              <span className="account-note"> · {account.status}</span>
+            {account.status === "stale" ? (
+              <span className="account-note">
+                {" "}
+                · stale{account.updatedAt ? ` ${formatAge(account.updatedAt, now)}` : ""}
+              </span>
             ) : null}
           </p>
         </div>
@@ -187,6 +198,10 @@ export function UsageDashboard({ initialSnapshot }: Readonly<{ initialSnapshot: 
           </section>
         </>
       )}
+      <p className="updated">
+        Updated {formatAge(snapshot.generatedAt, now)}
+        {snapshot.generatedAt && formatAge(snapshot.generatedAt, now) !== "just now" ? " ago" : ""}
+      </p>
     </main>
   );
 }
