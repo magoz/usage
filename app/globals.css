@@ -187,7 +187,7 @@ p {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 22px 22px 20px;
+  padding: 22px;
   background: var(--surface);
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--ring);
@@ -259,33 +259,6 @@ p {
   overflow: hidden;
   background: var(--track);
   border-radius: 999px;
-}
-
-.account-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: auto;
-  padding-top: 18px;
-  border-top: 1px solid var(--divider);
-}
-
-.account-foot div:last-child {
-  text-align: right;
-}
-
-.account-foot span {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.account-foot strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
 }
 
 .empty {

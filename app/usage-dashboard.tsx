@@ -32,15 +32,6 @@ const formatCountdown = (target: string | null, now: number) => {
 const primaryWindow = (account: UsageAccount): UsageWindow | undefined =>
   account.windows.find((window) => window.durationMinutes === 10_080) ?? account.windows[0];
 
-const nextReset = (account: UsageAccount) =>
-  account.windows
-    .map((window) => window.resetsAt)
-    .filter((value): value is string => value !== null)
-    .sort((left, right) => Date.parse(left) - Date.parse(right))[0] ?? null;
-
-const recentRequests = (account: UsageAccount) =>
-  account.activity.slice(-6).reduce((total, bucket) => total + bucket.success + bucket.failed, 0);
-
 function ProviderGlyph({ provider }: Readonly<{ provider: ProviderId }>) {
   const glyph = { codex: "C", anthropic: "A", xai: "X", zai: "Z", "opencode-go": "O" }[provider];
   return (
@@ -97,7 +88,6 @@ function PoolSummary({
 
 function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: number }>) {
   const unavailable = account.status === "unavailable";
-  const requests = recentRequests(account);
 
   return (
     <section className="account" data-provider={account.provider} aria-label={account.account}>
@@ -144,17 +134,6 @@ function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: nu
           ))
         )}
       </div>
-
-      <footer className="account-foot">
-        <div>
-          <span>Next reset</span>
-          <strong>{formatCountdown(nextReset(account), now)}</strong>
-        </div>
-        <div>
-          <span>Requests · 1 hr</span>
-          <strong>{requests}</strong>
-        </div>
-      </footer>
     </section>
   );
 }
