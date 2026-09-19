@@ -84,6 +84,30 @@ const readZaiKey = async (path: string): Promise<string | null> => {
   return null;
 };
 
+class RateLimitedError extends Error {
+  readonly retryAfterMs: number | null;
+
+  constructor(retryAfter: string | null) {
+    super("rate limited");
+    const seconds = Number(retryAfter);
+    const at = retryAfter === null ? NaN : Date.parse(retryAfter);
+    this.retryAfterMs = Number.isFinite(seconds)
+      ? Math.max(0, seconds) * 1000
+      : Number.isFinite(at)
+        ? Math.max(0, at - Date.now())
+        : null;
+  }
+}
+
+type AccountSample = {
+  readonly account: UsageAccount;
+  readonly nextAllowedAt: number;
+};
+
+// Last good reading per account. Providers are only re-queried once their own
+// interval has elapsed, regardless of how often the page is loaded.
+const samples = new Map<string, AccountSample>();
+
 const fetchJson = async (
   url: string,
   headers: HeadersInit,
@@ -101,7 +125,7 @@ const fetchJson = async (
   });
 
   if (response.status === 401 || response.status === 403) throw new Error("authentication failed");
-  if (response.status === 429) throw new Error("rate limited");
+  if (response.status === 429) throw new RateLimitedError(response.headers.get("retry-after"));
   if (!response.ok) throw new Error(`request failed (${response.status})`);
 
   return response.json();
@@ -247,43 +271,56 @@ const accountResult = async (input: {
   activity?: ReadonlyArray<ActivityBucket>;
   load: () => Promise<{ windows: ReadonlyArray<UsageWindow>; plan?: string | null }>;
 }): Promise<UsageAccount> => {
-  const updatedAt = new Date().toISOString();
+  const id = `${input.provider}:${input.account}`;
+  const now = Date.now();
+  const previous = samples.get(id);
+  const base = {
+    id,
+    provider: input.provider,
+    providerName: providerName(input.provider),
+    account: input.account,
+    priority: input.priority ?? 0,
+    primary: input.primary ?? false,
+    refreshIntervalMinutes: input.refreshIntervalMinutes,
+    activity: input.activity ?? [],
+  };
+  const intervalMs = input.refreshIntervalMinutes * 60_000;
+
+  if (previous && now < previous.nextAllowedAt) {
+    return { ...previous.account, ...base, plan: previous.account.plan };
+  }
 
   try {
     const result = await input.load();
     if (result.windows.length === 0) throw new Error("usage windows unavailable");
 
-    return {
-      id: `${input.provider}:${input.account}`,
-      provider: input.provider,
-      providerName: providerName(input.provider),
-      account: input.account,
+    const account: UsageAccount = {
+      ...base,
       plan: result.plan ?? input.plan ?? null,
-      priority: input.priority ?? 0,
-      primary: input.primary ?? false,
       status: "fresh",
-      updatedAt,
-      refreshIntervalMinutes: input.refreshIntervalMinutes,
+      updatedAt: new Date(now).toISOString(),
       windows: result.windows,
-      activity: input.activity ?? [],
       message: null,
     };
+    samples.set(id, { account, nextAllowedAt: now + intervalMs });
+    return account;
   } catch (error) {
-    return {
-      id: `${input.provider}:${input.account}`,
-      provider: input.provider,
-      providerName: providerName(input.provider),
-      account: input.account,
-      plan: input.plan ?? null,
-      priority: input.priority ?? 0,
-      primary: input.primary ?? false,
-      status: "unavailable",
-      updatedAt: null,
-      refreshIntervalMinutes: input.refreshIntervalMinutes,
-      windows: [],
-      activity: input.activity ?? [],
-      message: error instanceof Error ? error.message : "request failed",
-    };
+    const message = error instanceof Error ? error.message : "request failed";
+    const retryAfterMs = error instanceof RateLimitedError ? error.retryAfterMs : null;
+    const backoffMs = Math.max(60_000, Math.min(retryAfterMs ?? intervalMs, 60 * 60_000));
+    const account: UsageAccount =
+      previous && previous.account.windows.length > 0
+        ? { ...previous.account, ...base, status: "stale", message }
+        : {
+            ...base,
+            plan: input.plan ?? null,
+            status: "unavailable",
+            updatedAt: null,
+            windows: [],
+            message,
+          };
+    samples.set(id, { account, nextAllowedAt: now + backoffMs });
+    return account;
   }
 };
 
