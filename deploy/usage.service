@@ -6,7 +6,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-WorkingDirectory=/home/you/usage
+WorkingDirectory=/home/you/subs/usage
 Environment=NODE_ENV=production
 Environment=PORT=8320
 Environment=CPA_BASE_URL=http://127.0.0.1:8317
