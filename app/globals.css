@@ -189,7 +189,7 @@ p {
   display: flex;
   flex-direction: column;
   gap: 32px;
-  min-height: 250px;
+  min-height: 265px;
   padding: 28px 26px 30px;
   background: var(--surface);
   border-radius: 12px;
@@ -270,26 +270,32 @@ p {
   text-align: center;
 }
 
-.loading-card {
-  min-height: 200px;
-}
-
-.loading-line,
-.loading-bar {
+.skeleton {
+  display: inline-block;
   background: var(--track);
   border-radius: 4px;
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-.loading-line {
-  width: 60%;
-  height: 12px;
+.skeleton.glyph {
+  color: transparent;
 }
 
-.loading-bar {
-  width: 100%;
-  height: 4px;
-  border-radius: 999px;
+.skeleton-text {
+  height: 11px;
+  vertical-align: middle;
+}
+
+.skeleton-title {
+  display: block;
+  height: 14px;
+  margin: 2px 0;
+}
+
+.skeleton-figure {
+  width: 120px;
+  height: 48px;
+  border-radius: 6px;
 }
 
 @keyframes pulse {
