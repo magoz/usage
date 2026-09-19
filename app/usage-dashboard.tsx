@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ProviderIcon } from "./provider-icon";
 import type { ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "@/lib/usage/types";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -32,15 +33,6 @@ const formatCountdown = (target: string | null, now: number) => {
 const primaryWindow = (account: UsageAccount): UsageWindow | undefined =>
   account.windows.find((window) => window.durationMinutes === 10_080) ?? account.windows[0];
 
-function ProviderGlyph({ provider }: Readonly<{ provider: ProviderId }>) {
-  const glyph = { codex: "C", anthropic: "A", xai: "X", zai: "Z", "opencode-go": "O" }[provider];
-  return (
-    <span className="glyph" data-provider={provider} aria-hidden="true">
-      {glyph}
-    </span>
-  );
-}
-
 function PoolSummary({
   provider,
   accounts,
@@ -55,7 +47,7 @@ function PoolSummary({
   return (
     <div className="pool" data-provider={provider}>
       <div className="pool-head">
-        <ProviderGlyph provider={provider} />
+        <ProviderIcon provider={provider} />
         <span className="pool-name">{providerName}</span>
       </div>
       {reporting.length === 0 ? (
@@ -102,7 +94,7 @@ function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: nu
             ) : null}
           </p>
         </div>
-        <ProviderGlyph provider={account.provider} />
+        <ProviderIcon provider={account.provider} />
       </header>
 
       <div className="account-windows">
