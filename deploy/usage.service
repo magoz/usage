@@ -1,0 +1,27 @@
+[Unit]
+Description=Subscription usage dashboard
+After=network-online.target subs.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/home/you/usage
+Environment=NODE_ENV=production
+Environment=PORT=8320
+Environment=CPA_BASE_URL=http://127.0.0.1:8317
+Environment=CPA_MANAGEMENT_KEY_FILE=/home/you/subs/management.key
+Environment=CPA_AUTH_DIR=/home/you/subs/auth
+Environment=CPA_CONFIG_FILE=/home/you/subs/config.yaml
+Environment=OPENCODE_GO_ENV_FILE=/home/you/.config/subs/opencode-go.env
+Environment=USAGE_CACHE_TTL_MS=300000
+ExecStart=/usr/bin/pnpm start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=default.target
