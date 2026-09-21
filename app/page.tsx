@@ -26,7 +26,6 @@ function DashboardLoading() {
             </div>
             <p className="pool-label">
               <span className="skeleton skeleton-text" style={{ width: 88 }} />
-              <span className="skeleton skeleton-text" style={{ width: 56 }} />
             </p>
             <div className="segments">
               <span className="segment" />

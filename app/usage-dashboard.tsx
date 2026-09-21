@@ -38,14 +38,26 @@ const formatAge = (iso: string, now: number) => {
   return hours < 24 ? `${hours} hr` : `${Math.floor(hours / 24)} d`;
 };
 
-const primaryWindow = (account: UsageAccount): UsageWindow | undefined =>
-  account.windows.find((window) => window.durationMinutes === 10_080) ?? account.windows[0];
+const summaryWindow = (account: UsageAccount): UsageWindow | undefined => {
+  const weekly = account.windows.filter((window) => window.durationMinutes === 10_080);
+
+  if (account.provider === "anthropic") {
+    return (
+      weekly.find((window) => window.label.startsWith("Fable ")) ??
+      weekly.find((window) => window.id.startsWith("weekly-scoped-")) ??
+      weekly[0] ??
+      account.windows[0]
+    );
+  }
+
+  return weekly[0] ?? account.windows[0];
+};
 
 function PoolSummary({
   provider,
   accounts,
 }: Readonly<{ provider: ProviderId; accounts: ReadonlyArray<UsageAccount> }>) {
-  const windows = accounts.map((account) => primaryWindow(account));
+  const windows = accounts.map((account) => summaryWindow(account));
   const reporting = windows.filter((window): window is UsageWindow => window !== undefined);
   const remaining = reporting.reduce((total, window) => total + window.remainingPercent, 0);
   const capacity = reporting.length * 100;
@@ -67,12 +79,7 @@ function PoolSummary({
             <span className="pool-unit">%</span>
             <span className="pool-of">of {capacity}%</span>
           </p>
-          <p className="pool-label">
-            <span>{label} window</span>
-            <span>
-              {accounts.length} {accounts.length === 1 ? "account" : "accounts"}
-            </span>
-          </p>
+          <p className="pool-label">{label} window</p>
           <div className="segments" aria-hidden="true">
             {reporting.map((window, index) => (
               <span className="segment" key={index}>

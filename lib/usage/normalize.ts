@@ -44,7 +44,7 @@ const parseReset = (value: unknown) => {
 export const normalizeAnthropicUsage = (payload: unknown): ReadonlyArray<UsageWindow> => {
   if (!isRecord(payload)) return [];
 
-  return [
+  const standard = [
     ["five-hour", "5-hour", payload.five_hour, 300],
     ["weekly", "Weekly", payload.seven_day, 10_080],
   ].flatMap(([id, label, raw, duration]) => {
@@ -56,6 +56,35 @@ export const normalizeAnthropicUsage = (payload: unknown): ReadonlyArray<UsageWi
       usageWindow(String(id), String(label), used, parseReset(raw.resets_at), Number(duration)),
     ];
   });
+
+  const scoped = Array.isArray(payload.limits)
+    ? payload.limits.flatMap((raw, index) => {
+        if (!isRecord(raw) || raw.kind !== "weekly_scoped") return [];
+        const scope = isRecord(raw.scope) ? raw.scope : undefined;
+        const model = scope && isRecord(scope.model) ? scope.model : undefined;
+        const displayName = model?.display_name;
+        const used = finiteNumber(raw.percent);
+        if (typeof displayName !== "string" || displayName.length === 0 || used === undefined)
+          return [];
+
+        const modelId =
+          typeof model?.id === "string" && model.id.length > 0
+            ? model.id
+            : displayName.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+
+        return [
+          usageWindow(
+            `weekly-scoped-${modelId || index}`,
+            `${displayName} weekly`,
+            used,
+            parseReset(raw.resets_at),
+            10_080,
+          ),
+        ];
+      })
+    : [];
+
+  return [...standard, ...scoped];
 };
 
 const codexWindow = (

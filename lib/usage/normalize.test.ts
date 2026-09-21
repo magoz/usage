@@ -13,10 +13,25 @@ describe("usage normalization", () => {
       normalizeAnthropicUsage({
         five_hour: { utilization: 4, resets_at: "2026-09-19T20:00:00Z" },
         seven_day: { utilization: 18, resets_at: "2026-09-25T20:00:00Z" },
+        limits: [
+          {
+            kind: "weekly_scoped",
+            percent: 100,
+            resets_at: "2026-09-25T20:00:00Z",
+            scope: { model: { id: null, display_name: "Fable" } },
+          },
+        ],
       }),
     ).toMatchObject([
       { label: "5-hour", usedPercent: 4, remainingPercent: 96 },
       { label: "Weekly", usedPercent: 18, remainingPercent: 82 },
+      {
+        id: "weekly-scoped-fable",
+        label: "Fable weekly",
+        usedPercent: 100,
+        remainingPercent: 0,
+        resetsAt: "2026-09-25T20:00:00.000Z",
+      },
     ]);
   });
 
