@@ -9,6 +9,11 @@ export type UsageWindow = {
   readonly durationMinutes: number | null;
 };
 
+export type ResetCredits = {
+  readonly available: number;
+  readonly expiresAt: string | null;
+};
+
 export type ActivityBucket = {
   readonly time: string;
   readonly success: number;
@@ -27,6 +32,7 @@ export type UsageAccount = {
   readonly updatedAt: string | null;
   readonly refreshIntervalMinutes: number;
   readonly windows: ReadonlyArray<UsageWindow>;
+  readonly resetCredits: ResetCredits | null;
   readonly activity: ReadonlyArray<ActivityBucket>;
   readonly message: string | null;
 };

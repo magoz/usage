@@ -8,13 +8,21 @@ const home = homedir();
 const defaultPath = (...segments: string[]) => join(home, ...segments);
 import {
   normalizeAnthropicUsage,
+  normalizeCodexResetCredits,
   normalizeCodexUsage,
   normalizeGrokUsage,
   normalizeOpencodeGoUsage,
   normalizeZaiUsage,
   zaiPlan,
 } from "./normalize";
-import type { ActivityBucket, ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "./types";
+import type {
+  ActivityBucket,
+  ProviderId,
+  ResetCredits,
+  UsageAccount,
+  UsageSnapshot,
+  UsageWindow,
+} from "./types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -269,7 +277,11 @@ const accountResult = async (input: {
   primary?: boolean;
   refreshIntervalMinutes: number;
   activity?: ReadonlyArray<ActivityBucket>;
-  load: () => Promise<{ windows: ReadonlyArray<UsageWindow>; plan?: string | null }>;
+  load: () => Promise<{
+    windows: ReadonlyArray<UsageWindow>;
+    plan?: string | null;
+    resetCredits?: ResetCredits | null;
+  }>;
 }): Promise<UsageAccount> => {
   const id = `${input.provider}:${input.account}`;
   const now = Date.now();
@@ -300,6 +312,7 @@ const accountResult = async (input: {
       status: "fresh",
       updatedAt: new Date(now).toISOString(),
       windows: result.windows,
+      resetCredits: result.resetCredits ?? null,
       message: null,
     };
     samples.set(id, { account, nextAllowedAt: now + intervalMs });
@@ -317,6 +330,7 @@ const accountResult = async (input: {
             status: "unavailable",
             updatedAt: null,
             windows: [],
+            resetCredits: null,
             message,
           };
     samples.set(id, { account, nextAllowedAt: now + backoffMs });
@@ -384,20 +398,27 @@ const loadNativeAccounts = async (
         plan: metadata?.plan ?? (credential.fileName.includes("-pro.") ? "Pro" : null),
         refreshIntervalMinutes: 5,
         load: async () => {
+          const headers: Record<string, string> = {
+            Authorization: `Bearer ${credential.accessToken}`,
+          };
+          if (credential.accountId) headers["ChatGPT-Account-Id"] = credential.accountId;
+          const resetCredits = await fetchJson(
+            "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits",
+            headers,
+          )
+            .then((payload) => normalizeCodexResetCredits(payload))
+            .catch(() => null);
+
           try {
-            const headers: Record<string, string> = {
-              Authorization: `Bearer ${credential.accessToken}`,
-            };
-            if (credential.accountId) headers["ChatGPT-Account-Id"] = credential.accountId;
             const windows = normalizeCodexUsage(
               await fetchJson("https://chatgpt.com/backend-api/wham/usage", headers),
             );
-            if (windows.length > 0) return { windows };
+            if (windows.length > 0) return { windows, resetCredits };
           } catch {
             // CLIProxyAPI's observed quota headers are a safe fallback when the direct endpoint is unavailable.
           }
 
-          return { windows: codexSignalsFallback(metadata?.quotaPayload) };
+          return { windows: codexSignalsFallback(metadata?.quotaPayload), resetCredits };
         },
       });
     }),

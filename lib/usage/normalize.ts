@@ -1,4 +1,4 @@
-import type { UsageWindow } from "./types";
+import type { ResetCredits, UsageWindow } from "./types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -118,6 +118,33 @@ export const normalizeCodexUsage = (
     codexWindow("primary", "Primary", payload.rate_limit.primary_window, now),
     codexWindow("secondary", "Secondary", payload.rate_limit.secondary_window, now),
   ].filter((window): window is UsageWindow => window !== undefined);
+};
+
+export const normalizeCodexResetCredits = (
+  payload: unknown,
+  now = Date.now(),
+): ResetCredits | null => {
+  if (!isRecord(payload)) return null;
+  const available = finiteNumber(payload.available_count);
+  if (available === undefined) return null;
+
+  const expiries = Array.isArray(payload.credits)
+    ? payload.credits.flatMap((credit) => {
+        if (!isRecord(credit)) return [];
+        const status =
+          typeof credit.status === "string" ? credit.status.toLowerCase() : "available";
+        if (status !== "available") return [];
+        const expires = parseReset(credit.expires_at);
+        if (expires === undefined || expires <= now) return [];
+        return [expires];
+      })
+    : [];
+  const soonest = expiries.length > 0 ? Math.min(...expiries) : undefined;
+
+  return {
+    available: Math.max(0, Math.floor(available)),
+    expiresAt: soonest === undefined ? null : new Date(soonest).toISOString(),
+  };
 };
 
 export const normalizeGrokUsage = (payload: unknown): ReadonlyArray<UsageWindow> => {

@@ -30,6 +30,18 @@ const formatCountdown = (target: string | null, now: number) => {
   return `${mins} min`;
 };
 
+const formatResetDate = (iso: string, now: number) => {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return null;
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  }).format(date);
+};
+
 const formatAge = (iso: string, now: number) => {
   const minutes = Math.floor((now - Date.parse(iso)) / 60_000);
   if (minutes < 1) return "just now";
@@ -95,6 +107,11 @@ function PoolSummary({
 
 function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: number }>) {
   const unavailable = account.status === "unavailable";
+  const resets =
+    account.provider === "codex" && account.resetCredits && account.resetCredits.available > 0
+      ? account.resetCredits
+      : null;
+  const resetDate = resets?.expiresAt ? formatResetDate(resets.expiresAt, now) : null;
 
   return (
     <section className="account" data-provider={account.provider} aria-label={account.account}>
@@ -144,6 +161,14 @@ function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: nu
           ))
         )}
       </div>
+      {resets ? (
+        <p className="reset-credits">
+          <span className="reset-credits-count">
+            {resets.available} {resets.available === 1 ? "reset" : "resets"}
+          </span>
+          {resetDate ? <span className="reset-credits-expiry">{resetDate}</span> : null}
+        </p>
+      ) : null}
     </section>
   );
 }

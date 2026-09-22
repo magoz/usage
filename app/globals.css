@@ -233,6 +233,24 @@ p {
   min-height: 44px;
 }
 
+.reset-credits {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reset-credits-count {
+  color: var(--fg);
+}
+
+.reset-credits-expiry {
+  color: var(--faint);
+}
+
 .account-empty {
   color: var(--muted);
   font-size: 12px;

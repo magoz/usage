@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeAnthropicUsage,
+  normalizeCodexResetCredits,
   normalizeCodexUsage,
   normalizeGrokUsage,
   normalizeOpencodeGoUsage,
@@ -59,6 +60,33 @@ describe("usage normalization", () => {
       { label: "5-hour", remainingPercent: 75, resetsAt: "2026-09-19T12:01:00.000Z" },
       { label: "Weekly", remainingPercent: 50 },
     ]);
+  });
+
+  it("keeps the soonest available Codex reset credit", () => {
+    const now = Date.parse("2026-09-22T20:00:00Z");
+    expect(
+      normalizeCodexResetCredits(
+        {
+          available_count: 2,
+          credits: [
+            { status: "available", expires_at: "2026-09-25T20:00:00Z" },
+            { status: "available", expires_at: 1_790_500_000 },
+            { status: "redeemed", expires_at: "2026-09-23T20:00:00Z" },
+          ],
+        },
+        now,
+      ),
+    ).toEqual({
+      available: 2,
+      expiresAt: "2026-09-25T20:00:00.000Z",
+    });
+  });
+
+  it("reports a Codex account with no reset credits", () => {
+    expect(normalizeCodexResetCredits({ available_count: 0, credits: [] })).toEqual({
+      available: 0,
+      expiresAt: null,
+    });
   });
 
   it("normalizes Grok billing periods", () => {
