@@ -19,17 +19,24 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Vitest �
 
 All settings are environment variables; defaults assume CLIProxyAPI lives at `~/subs`.
 
-| Variable                  | Default                          | Purpose                                                        |
-| ------------------------- | -------------------------------- | -------------------------------------------------------------- |
-| `CPA_BASE_URL`            | `http://127.0.0.1:8317`          | CLIProxyAPI base URL                                           |
-| `CPA_MANAGEMENT_KEY_FILE` | `~/subs/management.key`          | Plaintext management key (read server-side)                    |
-| `CPA_AUTH_DIR`            | `~/subs/auth`                    | CLIProxyAPI OAuth token directory                              |
-| `CPA_CONFIG_FILE`         | `~/subs/config.yaml`             | Used only to read the Z.AI API key                             |
-| `OPENCODE_GO_ENV_FILE`    | `~/.config/subs/opencode-go.env` | File containing `OPENCODE_GO_API_KEY=…`                        |
-| `USAGE_CACHE_TTL_MS`      | `300000`                         | Server-side cache for upstream usage samples                   |
-| `CLAUDE_CLI_VERSION`      | `2.1.283`                        | Claude Code version presented when reading Claude limit resets |
+| Variable                  | Default                                                               | Purpose                                                         |
+| ------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `CPA_BASE_URL`            | `http://127.0.0.1:8317`                                               | CLIProxyAPI base URL                                            |
+| `CPA_MANAGEMENT_KEY_FILE` | `~/subs/management.key`                                               | Plaintext management key (read server-side)                     |
+| `CPA_AUTH_DIR`            | `~/subs/auth`                                                         | CLIProxyAPI OAuth token directory                               |
+| `CPA_CONFIG_FILE`         | `~/subs/config.yaml`                                                  | Used only to read the Z.AI API key                              |
+| `OPENCODE_GO_ENV_FILE`    | `~/.config/subs/opencode-go.env`                                      | File containing `OPENCODE_GO_API_KEY=…`                         |
+| `USAGE_CACHE_TTL_MS`      | `300000`                                                              | Server-side snapshot cache (at most 60 s if any account failed) |
+| `USAGE_STATE_FILE`        | `$STATE_DIRECTORY/state.json`, else `~/.local/state/usage/state.json` | Persisted per-account samples (see below)                       |
+| `CLAUDE_CLI_VERSION`      | `2.1.283`                                                             | Claude Code version presented when reading Claude limit resets  |
 
 See `.env.example`.
+
+### Caching and persisted state
+
+The page and `/api/usage` share one in-process cache: each account keeps its last reading and is re-queried only after its own interval (Claude 10 min, others 5 min) or, after an error, its backoff (honouring `Retry-After`, up to an hour). A failed refresh keeps showing the last good reading marked stale.
+
+Per-account samples are also written to `USAGE_STATE_FILE` (mode `0600`, atomically, only after an upstream call), so a restart keeps last-good data and does not re-query a provider that is still in backoff. The file holds account emails and quota state (windows, reset credits, status); it never contains credentials. A missing, corrupt or outdated file is ignored and rebuilt.
 
 ## Development
 

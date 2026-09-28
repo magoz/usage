@@ -15,6 +15,10 @@ Environment=CPA_AUTH_DIR=/home/you/subs/auth
 Environment=CPA_CONFIG_FILE=/home/you/subs/config.yaml
 Environment=OPENCODE_GO_ENV_FILE=/home/you/.config/subs/opencode-go.env
 Environment=USAGE_CACHE_TTL_MS=300000
+# Persisted account samples: ~/.local/state/usage/state.json (exported as $STATE_DIRECTORY).
+# StateDirectory= bind-mounts it writable, so ProtectHome=read-only needs no ReadWritePaths=.
+StateDirectory=usage
+StateDirectoryMode=0700
 ExecStart=/usr/bin/pnpm start
 Restart=on-failure
 RestartSec=5

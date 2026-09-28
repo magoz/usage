@@ -16,14 +16,15 @@ import {
   normalizeZaiUsage,
   zaiPlan,
 } from "./normalize";
-import type {
-  ActivityBucket,
-  ProviderId,
-  ResetCredits,
-  UsageAccount,
-  UsageSnapshot,
-  UsageWindow,
-} from "./types";
+import {
+  RateLimitedError,
+  resolveAccount,
+  snapshotTtlMs,
+  type AccountInput,
+  type AccountSample,
+} from "./sampling";
+import { loadState, saveState, stateFilePath } from "./state-store";
+import type { ActivityBucket, ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "./types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -92,29 +93,78 @@ const readZaiKey = async (path: string): Promise<string | null> => {
   return null;
 };
 
-class RateLimitedError extends Error {
-  readonly retryAfterMs: number | null;
-
-  constructor(retryAfter: string | null) {
-    super("rate limited");
-    const seconds = Number(retryAfter);
-    const at = retryAfter === null ? NaN : Date.parse(retryAfter);
-    this.retryAfterMs = Number.isFinite(seconds)
-      ? Math.max(0, seconds) * 1000
-      : Number.isFinite(at)
-        ? Math.max(0, at - Date.now())
-        : null;
-  }
-}
-
-type AccountSample = {
-  readonly account: UsageAccount;
-  readonly nextAllowedAt: number;
+type ServiceState = {
+  // Last reading per account, with the time its provider may next be queried.
+  readonly samples: Map<string, AccountSample>;
+  cachedSnapshot: UsageSnapshot | null;
+  snapshotPromise: Promise<UsageSnapshot> | null;
+  restored: Promise<void> | null;
+  dirty: boolean;
+  persisting: Promise<void>;
+  persistFailureLogged: boolean;
 };
 
-// Last good reading per account. Providers are only re-queried once their own
-// interval has elapsed, regardless of how often the page is loaded.
-const samples = new Map<string, AccountSample>();
+declare global {
+  // Next.js bundles this module separately for the page and the route handler, so
+  // module-level variables would give each its own cache and throttle. One
+  // process-wide object keeps them shared.
+  // oxlint-disable-next-line no-var
+  var __usageDashboardState: ServiceState | undefined;
+}
+
+const state: ServiceState = (globalThis.__usageDashboardState ??= {
+  samples: new Map(),
+  cachedSnapshot: null,
+  snapshotPromise: null,
+  restored: null,
+  dirty: false,
+  persisting: Promise.resolve(),
+  persistFailureLogged: false,
+});
+
+// Loaded lazily on the first snapshot, never at import time.
+const restoreSamples = () =>
+  (state.restored ??= (async () => {
+    const path = stateFilePath();
+    try {
+      const { samples, problem } = await loadState(path);
+      if (problem) console.warn(`[usage] ignoring saved state in ${path} (${problem})`);
+      for (const [id, sample] of samples) {
+        if (!state.samples.has(id)) state.samples.set(id, sample);
+      }
+    } catch {
+      console.warn(`[usage] could not read saved state in ${path}; starting empty`);
+    }
+  })());
+
+// Written once per snapshot, and only when an upstream call produced a new sample.
+const persistSamples = (accounts: ReadonlyArray<UsageAccount>) => {
+  if (!state.dirty) return;
+  state.dirty = false;
+  const path = stateFilePath();
+  const current = new Set(accounts.map((account) => account.id));
+  const entries = [...state.samples].filter(([id]) => current.has(id));
+
+  state.persisting = state.persisting
+    .then(() => saveState(path, entries))
+    .then(
+      () => {
+        state.persistFailureLogged = false;
+      },
+      (error: unknown) => {
+        state.dirty = true;
+        if (state.persistFailureLogged) return;
+        state.persistFailureLogged = true;
+        const code = (error as NodeJS.ErrnoException | null)?.code ?? "unknown error";
+        console.warn(`[usage] could not save state to ${path} (${code})`);
+      },
+    );
+};
+
+const accountResult = (input: AccountInput): Promise<UsageAccount> =>
+  resolveAccount(state.samples, input, () => {
+    state.dirty = true;
+  });
 
 // Claude Code release Anthropic recognises for limit-reset status (older ones get none).
 const claudeCliVersion = () => process.env.CLAUDE_CLI_VERSION?.trim() || "2.1.283";
@@ -263,83 +313,6 @@ const codexSignalsFallback = (payload: unknown): ReadonlyArray<UsageWindow> => {
   });
 };
 
-const providerName = (provider: ProviderId) =>
-  ({
-    anthropic: "Claude",
-    codex: "Codex",
-    zai: "Z.AI",
-    "opencode-go": "OpenCode Go",
-  })[provider];
-
-const accountResult = async (input: {
-  provider: ProviderId;
-  account: string;
-  plan?: string | null;
-  priority?: number;
-  primary?: boolean;
-  refreshIntervalMinutes: number;
-  activity?: ReadonlyArray<ActivityBucket>;
-  load: () => Promise<{
-    windows: ReadonlyArray<UsageWindow>;
-    plan?: string | null;
-    resetCredits?: ResetCredits | null;
-  }>;
-}): Promise<UsageAccount> => {
-  const id = `${input.provider}:${input.account}`;
-  const now = Date.now();
-  const previous = samples.get(id);
-  const base = {
-    id,
-    provider: input.provider,
-    providerName: providerName(input.provider),
-    account: input.account,
-    priority: input.priority ?? 0,
-    primary: input.primary ?? false,
-    refreshIntervalMinutes: input.refreshIntervalMinutes,
-    activity: input.activity ?? [],
-  };
-  const intervalMs = input.refreshIntervalMinutes * 60_000;
-
-  if (previous && now < previous.nextAllowedAt) {
-    return { ...previous.account, ...base, plan: previous.account.plan };
-  }
-
-  try {
-    const result = await input.load();
-    if (result.windows.length === 0) throw new Error("usage windows unavailable");
-
-    const account: UsageAccount = {
-      ...base,
-      plan: result.plan ?? input.plan ?? null,
-      status: "fresh",
-      updatedAt: new Date(now).toISOString(),
-      windows: result.windows,
-      resetCredits: result.resetCredits ?? null,
-      message: null,
-    };
-    samples.set(id, { account, nextAllowedAt: now + intervalMs });
-    return account;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "request failed";
-    const retryAfterMs = error instanceof RateLimitedError ? error.retryAfterMs : null;
-    const backoffMs = Math.max(60_000, Math.min(retryAfterMs ?? intervalMs, 60 * 60_000));
-    const account: UsageAccount =
-      previous && previous.account.windows.length > 0
-        ? { ...previous.account, ...base, status: "stale", message }
-        : {
-            ...base,
-            plan: input.plan ?? null,
-            status: "unavailable",
-            updatedAt: null,
-            windows: [],
-            resetCredits: null,
-            message,
-          };
-    samples.set(id, { account, nextAllowedAt: now + backoffMs });
-    return account;
-  }
-};
-
 const loadNativeAccounts = async (
   credentials: ReadonlyArray<Credential>,
   runtime: Map<string, RuntimeMetadata>,
@@ -486,9 +459,6 @@ const loadExternalAccounts = async (
   return Promise.all(results);
 };
 
-let cachedSnapshot: UsageSnapshot | null = null;
-let snapshotPromise: Promise<UsageSnapshot> | null = null;
-
 const createSnapshot = async (): Promise<UsageSnapshot> => {
   const warnings: string[] = [];
   let runtime = new Map<string, RuntimeMetadata>();
@@ -521,21 +491,22 @@ const createSnapshot = async (): Promise<UsageSnapshot> => {
 
 export const getUsageSnapshot = async (options?: { force?: boolean }): Promise<UsageSnapshot> => {
   const ttl = Number(process.env.USAGE_CACHE_TTL_MS ?? 300_000);
-  const age = cachedSnapshot
-    ? Date.now() - Date.parse(cachedSnapshot.generatedAt)
-    : Number.POSITIVE_INFINITY;
+  const cached = state.cachedSnapshot;
+  const age = cached ? Date.now() - Date.parse(cached.generatedAt) : Number.POSITIVE_INFINITY;
 
-  if (!options?.force && cachedSnapshot && age < ttl) return cachedSnapshot;
-  if (snapshotPromise) return snapshotPromise;
+  if (!options?.force && cached && age < snapshotTtlMs(cached, ttl)) return cached;
+  if (state.snapshotPromise) return state.snapshotPromise;
 
-  snapshotPromise = createSnapshot()
+  state.snapshotPromise = restoreSamples()
+    .then(createSnapshot)
     .then((snapshot) => {
-      cachedSnapshot = snapshot;
+      state.cachedSnapshot = snapshot;
+      persistSamples(snapshot.accounts);
       return snapshot;
     })
     .finally(() => {
-      snapshotPromise = null;
+      state.snapshotPromise = null;
     });
 
-  return snapshotPromise;
+  return state.snapshotPromise;
 };
