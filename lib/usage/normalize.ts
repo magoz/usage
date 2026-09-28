@@ -41,6 +41,12 @@ const parseReset = (value: unknown) => {
   return numeric > 10_000_000_000 ? numeric : numeric * 1000;
 };
 
+// Model-scoped weekly limits for models no longer in use; hidden everywhere.
+const hiddenScopedModels = ["fable"];
+
+const isHiddenScopedModel = (displayName: string) =>
+  hiddenScopedModels.some((name) => displayName.trim().toLowerCase().startsWith(name));
+
 export const normalizeAnthropicUsage = (payload: unknown): ReadonlyArray<UsageWindow> => {
   if (!isRecord(payload)) return [];
 
@@ -66,6 +72,7 @@ export const normalizeAnthropicUsage = (payload: unknown): ReadonlyArray<UsageWi
         const used = finiteNumber(raw.percent);
         if (typeof displayName !== "string" || displayName.length === 0 || used === undefined)
           return [];
+        if (isHiddenScopedModel(displayName)) return [];
 
         const modelId =
           typeof model?.id === "string" && model.id.length > 0
@@ -120,6 +127,49 @@ export const normalizeCodexUsage = (
   ].filter((window): window is UsageWindow => window !== undefined);
 };
 
+/**
+ * Claude limit resets ("Reset for free"), from the undocumented `cedar_ember`
+ * block that `/api/oauth/usage?cedar_ember=1` returns to Claude Code. Returns null
+ * when Anthropic did not report eligibility (e.g. the caller's client surface or
+ * version is not recognised), so an unknown state is never shown as "no resets".
+ */
+export const normalizeAnthropicResetCredits = (
+  payload: unknown,
+  now = Date.now(),
+): ResetCredits | null => {
+  if (!isRecord(payload) || !isRecord(payload.cedar_ember)) return null;
+  const status = payload.cedar_ember;
+  if (status.eligible !== true || !Array.isArray(status.grants)) return null;
+
+  let available = 0;
+  const expiries: number[] = [];
+  for (const grant of status.grants) {
+    if (!isRecord(grant) || grant.paused === true) continue;
+    const left = finiteNumber(grant.resets_left);
+    if (left === undefined || left <= 0) continue;
+    const starts = parseReset(grant.starts_at);
+    const ends = parseReset(grant.ends_at);
+    if ((starts !== undefined && starts > now) || (ends !== undefined && ends <= now)) continue;
+    available += Math.floor(left);
+    if (ends !== undefined) expiries.push(ends);
+  }
+
+  return {
+    available,
+    expiresAt: expiries.length > 0 ? new Date(Math.min(...expiries)).toISOString() : null,
+  };
+};
+
+/** Why Anthropic withheld reset status, when it did; used for server-side diagnostics. */
+export const anthropicResetIneligibility = (payload: unknown): string | null => {
+  if (!isRecord(payload) || !isRecord(payload.cedar_ember)) return "cedar_ember block missing";
+  const status = payload.cedar_ember;
+  if (status.eligible === true) return null;
+  return typeof status.ineligible_reason === "string"
+    ? status.ineligible_reason
+    : "eligibility unknown";
+};
+
 export const normalizeCodexResetCredits = (
   payload: unknown,
   now = Date.now(),
@@ -145,28 +195,6 @@ export const normalizeCodexResetCredits = (
     available: Math.max(0, Math.floor(available)),
     expiresAt: soonest === undefined ? null : new Date(soonest).toISOString(),
   };
-};
-
-export const normalizeGrokUsage = (payload: unknown): ReadonlyArray<UsageWindow> => {
-  if (!isRecord(payload) || !isRecord(payload.config)) return [];
-  const used = finiteNumber(payload.config.creditUsagePercent);
-  if (used === undefined) return [];
-  const period = isRecord(payload.config.currentPeriod) ? payload.config.currentPeriod : undefined;
-  const type = period?.type;
-  const label =
-    type === "USAGE_PERIOD_TYPE_WEEKLY"
-      ? "Weekly"
-      : type === "USAGE_PERIOD_TYPE_MONTHLY"
-        ? "Monthly"
-        : "Usage";
-  const durationMinutes =
-    type === "USAGE_PERIOD_TYPE_WEEKLY"
-      ? 10_080
-      : type === "USAGE_PERIOD_TYPE_MONTHLY"
-        ? 43_200
-        : null;
-
-  return [usageWindow("credits", label, used, parseReset(period?.end), durationMinutes)];
 };
 
 const opencodeWindow = (

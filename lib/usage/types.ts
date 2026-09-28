@@ -1,4 +1,4 @@
-export type ProviderId = "anthropic" | "codex" | "xai" | "zai" | "opencode-go";
+export type ProviderId = "anthropic" | "codex" | "zai" | "opencode-go";
 
 export type UsageWindow = {
   readonly id: string;

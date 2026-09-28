@@ -6,7 +6,6 @@ It shows, per provider pool and per account, how much allowance is left in each 
 
 - **Codex** (ChatGPT OAuth accounts, pooled)
 - **Claude** (OAuth)
-- **xAI / Grok** (OAuth)
 - **Z.AI** Coding Plan (API key)
 - **OpenCode Go** (API key)
 
@@ -20,14 +19,15 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Vitest �
 
 All settings are environment variables; defaults assume CLIProxyAPI lives at `~/subs`.
 
-| Variable                  | Default                          | Purpose                                      |
-| ------------------------- | -------------------------------- | -------------------------------------------- |
-| `CPA_BASE_URL`            | `http://127.0.0.1:8317`          | CLIProxyAPI base URL                         |
-| `CPA_MANAGEMENT_KEY_FILE` | `~/subs/management.key`          | Plaintext management key (read server-side)  |
-| `CPA_AUTH_DIR`            | `~/subs/auth`                    | CLIProxyAPI OAuth token directory            |
-| `CPA_CONFIG_FILE`         | `~/subs/config.yaml`             | Used only to read the Z.AI API key           |
-| `OPENCODE_GO_ENV_FILE`    | `~/.config/subs/opencode-go.env` | File containing `OPENCODE_GO_API_KEY=…`      |
-| `USAGE_CACHE_TTL_MS`      | `300000`                         | Server-side cache for upstream usage samples |
+| Variable                  | Default                          | Purpose                                                        |
+| ------------------------- | -------------------------------- | -------------------------------------------------------------- |
+| `CPA_BASE_URL`            | `http://127.0.0.1:8317`          | CLIProxyAPI base URL                                           |
+| `CPA_MANAGEMENT_KEY_FILE` | `~/subs/management.key`          | Plaintext management key (read server-side)                    |
+| `CPA_AUTH_DIR`            | `~/subs/auth`                    | CLIProxyAPI OAuth token directory                              |
+| `CPA_CONFIG_FILE`         | `~/subs/config.yaml`             | Used only to read the Z.AI API key                             |
+| `OPENCODE_GO_ENV_FILE`    | `~/.config/subs/opencode-go.env` | File containing `OPENCODE_GO_API_KEY=…`                        |
+| `USAGE_CACHE_TTL_MS`      | `300000`                         | Server-side cache for upstream usage samples                   |
+| `CLAUDE_CLI_VERSION`      | `2.1.283`                        | Claude Code version presented when reading Claude limit resets |
 
 See `.env.example`.
 
@@ -38,6 +38,12 @@ pnpm install
 pnpm dev        # served through Portless
 pnpm verify     # format, typecheck, lint, tests, build
 ```
+
+## Limit resets
+
+Account cards show banked "reset" offers (count and soonest expiry) for Codex and Claude. Neither is spent from here.
+
+Claude resets come from an undocumented part of the same usage endpoint Claude Code uses: `GET https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1`, whose `cedar_ember` block lists grants with `resets_left`, `ends_at`, and `paused`. Anthropic only reports grants to a current Claude Code CLI client, so this request sends `User-Agent: claude-cli/$CLAUDE_CLI_VERSION (external, cli)` and `x-app: cli`. When Anthropic stops recognising that version it answers `eligible: false` (reason `surface`) or `eligible: null`; the card then shows no reset line and the server logs `Claude reset status unavailable … raise CLAUDE_CLI_VERSION`. Set it to the current `@anthropic-ai/claude-code` release and restart.
 
 ## Production
 

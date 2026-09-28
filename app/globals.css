@@ -24,10 +24,6 @@
   --accent: #f28c3b;
 }
 
-[data-provider="xai"] {
-  --accent: #3ecf8e;
-}
-
 [data-provider="zai"] {
   --accent: #a78bfa;
 }

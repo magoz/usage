@@ -2,17 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "./provider-icon";
+import { summaryWindow } from "@/lib/usage/summary";
 import type { ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "@/lib/usage/types";
 
 const POLL_INTERVAL_MS = 60_000;
 
-const providerOrder: ReadonlyArray<ProviderId> = [
-  "codex",
-  "anthropic",
-  "xai",
-  "zai",
-  "opencode-go",
-];
+const providerOrder: ReadonlyArray<ProviderId> = ["codex", "anthropic", "zai", "opencode-go"];
 
 const percentText = (value: number) => (value > 0 && value < 1 ? "<1" : `${Math.round(value)}`);
 
@@ -48,21 +43,6 @@ const formatAge = (iso: string, now: number) => {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   return hours < 24 ? `${hours} hr` : `${Math.floor(hours / 24)} d`;
-};
-
-const summaryWindow = (account: UsageAccount): UsageWindow | undefined => {
-  const weekly = account.windows.filter((window) => window.durationMinutes === 10_080);
-
-  if (account.provider === "anthropic") {
-    return (
-      weekly.find((window) => window.label.startsWith("Fable ")) ??
-      weekly.find((window) => window.id.startsWith("weekly-scoped-")) ??
-      weekly[0] ??
-      account.windows[0]
-    );
-  }
-
-  return weekly[0] ?? account.windows[0];
 };
 
 function PoolSummary({
@@ -108,7 +88,9 @@ function PoolSummary({
 function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: number }>) {
   const unavailable = account.status === "unavailable";
   const resets =
-    account.provider === "codex" && account.resetCredits && account.resetCredits.available > 0
+    (account.provider === "codex" || account.provider === "anthropic") &&
+    account.resetCredits &&
+    account.resetCredits.available > 0
       ? account.resetCredits
       : null;
   const resetDate = resets?.expiresAt ? formatResetDate(resets.expiresAt, now) : null;

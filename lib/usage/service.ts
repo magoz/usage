@@ -7,10 +7,11 @@ import { join } from "node:path";
 const home = homedir();
 const defaultPath = (...segments: string[]) => join(home, ...segments);
 import {
+  anthropicResetIneligibility,
+  normalizeAnthropicResetCredits,
   normalizeAnthropicUsage,
   normalizeCodexResetCredits,
   normalizeCodexUsage,
-  normalizeGrokUsage,
   normalizeOpencodeGoUsage,
   normalizeZaiUsage,
   zaiPlan,
@@ -28,7 +29,7 @@ type JsonRecord = Record<string, unknown>;
 
 type Credential = {
   readonly fileName: string;
-  readonly type: "claude" | "codex" | "xai";
+  readonly type: "claude" | "codex";
   readonly email: string;
   readonly accessToken: string;
   readonly accountId: string | null;
@@ -49,9 +50,8 @@ type RuntimeMetadata = {
 const providerOrder: Record<ProviderId, number> = {
   anthropic: 0,
   codex: 1,
-  xai: 2,
-  zai: 3,
-  "opencode-go": 4,
+  zai: 2,
+  "opencode-go": 3,
 };
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -116,6 +116,9 @@ type AccountSample = {
 // interval has elapsed, regardless of how often the page is loaded.
 const samples = new Map<string, AccountSample>();
 
+// Claude Code release Anthropic recognises for limit-reset status (older ones get none).
+const claudeCliVersion = () => process.env.CLAUDE_CLI_VERSION?.trim() || "2.1.283";
+
 const fetchJson = async (
   url: string,
   headers: HeadersInit,
@@ -149,7 +152,7 @@ const loadCredentials = async (directory: string): Promise<ReadonlyArray<Credent
       const payload: unknown = JSON.parse(await readText(join(directory, fileName)));
       if (!isRecord(payload)) return null;
       const type = payload.type;
-      if (type !== "claude" && type !== "codex" && type !== "xai") return null;
+      if (type !== "claude" && type !== "codex") return null;
       const email = stringValue(payload.email);
       const accessToken = stringValue(payload.access_token);
       if (!email || !accessToken) return null;
@@ -264,7 +267,6 @@ const providerName = (provider: ProviderId) =>
   ({
     anthropic: "Claude",
     codex: "Codex",
-    xai: "xAI",
     zai: "Z.AI",
     "opencode-go": "OpenCode Go",
   })[provider];
@@ -365,30 +367,31 @@ const loadNativeAccounts = async (
           provider: "anthropic",
           ...common,
           refreshIntervalMinutes: 10,
-          load: async () => ({
-            windows: normalizeAnthropicUsage(
-              await fetchJson("https://api.anthropic.com/api/oauth/usage", {
+          load: async () => {
+            // `cedar_ember=1` adds limit-reset status. Anthropic only reports it to a
+            // current Claude Code CLI client, so identify as one (read-only call;
+            // `skip_spend=1` mirrors Claude Code and omits spend details we do not use).
+            const payload = await fetchJson(
+              "https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1",
+              {
                 Authorization: `Bearer ${credential.accessToken}`,
                 "anthropic-beta": "oauth-2025-04-20",
-              }),
-            ),
-          }),
-        });
-      }
-
-      if (credential.type === "xai") {
-        return accountResult({
-          provider: "xai",
-          ...common,
-          refreshIntervalMinutes: 5,
-          load: async () => ({
-            windows: normalizeGrokUsage(
-              await fetchJson("https://cli-chat-proxy.grok.com/v1/billing?format=credits", {
-                Authorization: `Bearer ${credential.accessToken}`,
-                "X-XAI-Token-Auth": "xai-grok-cli",
-              }),
-            ),
-          }),
+                "User-Agent": `claude-cli/${claudeCliVersion()} (external, cli)`,
+                "x-app": "cli",
+              },
+            );
+            const ineligible = anthropicResetIneligibility(payload);
+            if (ineligible) {
+              console.warn(
+                `[usage] Claude reset status unavailable for ${credential.email} (${ineligible}); ` +
+                  "if this persists, raise CLAUDE_CLI_VERSION to the current Claude Code release",
+              );
+            }
+            return {
+              windows: normalizeAnthropicUsage(payload),
+              resetCredits: normalizeAnthropicResetCredits(payload),
+            };
+          },
         });
       }
 
