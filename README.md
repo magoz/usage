@@ -54,7 +54,7 @@ Claude resets come from an undocumented part of the same usage endpoint Claude C
 
 ## Production
 
-Build once, then run `next start` bound to loopback and put it behind whatever private HTTPS you already use (Portless, Tailscale Serve, Caddy…). An example systemd user unit is in [`deploy/usage.service`](deploy/usage.service):
+Build once, then run `next start` bound to loopback and put it behind whatever private HTTPS you already use (Portless, Tailscale Serve, Caddy…). An example systemd user unit is in [`deploy/usage.service`](deploy/usage.service); it expects this checkout at `~/usage` and CLIProxyAPI at `~/subs`, and orders itself after a `subs.service` unit. Do not give that proxy unit `After=default.target`: `default.target` wants both units, so the edge forms an ordering cycle and systemd drops `usage.service` at boot.
 
 ```bash
 pnpm build
