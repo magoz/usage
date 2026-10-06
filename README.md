@@ -6,7 +6,6 @@ It shows, per provider pool and per account, how much allowance is left in each 
 
 - **Codex** (ChatGPT OAuth accounts, pooled)
 - **Claude** (OAuth)
-- **Z.AI** Coding Plan (API key)
 - **OpenCode Go** (API key)
 
 No mutation controls, no browser-visible credentials. The server reads CLIProxyAPI's auth files and management API, calls each provider's own usage endpoint, and exposes a normalized `/api/usage` JSON. The browser polls that once a minute.
@@ -24,7 +23,6 @@ All settings are environment variables; defaults assume CLIProxyAPI lives at `~/
 | `CPA_BASE_URL`            | `http://127.0.0.1:8317`                                               | CLIProxyAPI base URL                                            |
 | `CPA_MANAGEMENT_KEY_FILE` | `~/subs/management.key`                                               | Plaintext management key (read server-side)                     |
 | `CPA_AUTH_DIR`            | `~/subs/auth`                                                         | CLIProxyAPI OAuth token directory                               |
-| `CPA_CONFIG_FILE`         | `~/subs/config.yaml`                                                  | Used only to read the Z.AI API key                              |
 | `OPENCODE_GO_ENV_FILE`    | `~/.config/subs/opencode-go.env`                                      | File containing `OPENCODE_GO_API_KEY=…`                         |
 | `USAGE_CACHE_TTL_MS`      | `300000`                                                              | Server-side snapshot cache (at most 60 s if any account failed) |
 | `USAGE_STATE_FILE`        | `$STATE_DIRECTORY/state.json`, else `~/.local/state/usage/state.json` | Persisted per-account samples (see below)                       |

@@ -6,7 +6,6 @@ import {
   normalizeCodexResetCredits,
   normalizeCodexUsage,
   normalizeOpencodeGoUsage,
-  normalizeZaiUsage,
 } from "./normalize";
 
 describe("usage normalization", () => {
@@ -177,23 +176,6 @@ describe("usage normalization", () => {
     ).toMatchObject([
       { label: "5-hour", remainingPercent: 91 },
       { label: "Weekly", remainingPercent: 88 },
-    ]);
-  });
-
-  it("accepts Z.AI credit limits", () => {
-    expect(
-      normalizeZaiUsage({
-        data: {
-          level: "max",
-          limits: [
-            { type: "CREDIT_LIMIT", unit: 3, percentage: 1, nextResetTime: 1_790_000_000_000 },
-            { type: "CREDIT_LIMIT", unit: 6, percentage: 54, nextResetTime: 1_790_500_000_000 },
-          ],
-        },
-      }),
-    ).toMatchObject([
-      { label: "5-hour", remainingPercent: 99 },
-      { label: "Weekly", remainingPercent: 46 },
     ]);
   });
 });

@@ -231,37 +231,3 @@ export const normalizeOpencodeGoUsage = (
     opencodeWindow("monthly", "Monthly", payload.usage.monthly, now, 43_200),
   ].filter((window): window is UsageWindow => window !== undefined);
 };
-
-export const normalizeZaiUsage = (payload: unknown): ReadonlyArray<UsageWindow> => {
-  if (!isRecord(payload) || !isRecord(payload.data)) return [];
-  const data = payload.data;
-  const limits = data.limits;
-  if (!Array.isArray(limits)) return [];
-
-  const allowedTypes = new Set(["TOKENS_LIMIT", "CREDIT_LIMIT"]);
-
-  return [
-    { unit: 3, id: "short", label: "5-hour", durationMinutes: 300 },
-    { unit: 6, id: "weekly", label: "Weekly", durationMinutes: 10_080 },
-  ].flatMap((spec) => {
-    const entry = limits.find(
-      (candidate) =>
-        isRecord(candidate) &&
-        allowedTypes.has(String(candidate.type)) &&
-        candidate.unit === spec.unit,
-    );
-    if (!isRecord(entry)) return [];
-    const used = finiteNumber(entry.percentage);
-    if (used === undefined) return [];
-
-    return [
-      usageWindow(spec.id, spec.label, used, parseReset(entry.nextResetTime), spec.durationMinutes),
-    ];
-  });
-};
-
-export const zaiPlan = (payload: unknown): string | null => {
-  if (!isRecord(payload) || !isRecord(payload.data)) return null;
-
-  return typeof payload.data.level === "string" ? payload.data.level : null;
-};

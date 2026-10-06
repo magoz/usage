@@ -47,7 +47,7 @@ const isNullableString = (value: unknown): value is string | null =>
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
-const providers: ReadonlyArray<ProviderId> = ["anthropic", "codex", "zai", "opencode-go"];
+const providers: ReadonlyArray<ProviderId> = ["anthropic", "codex", "opencode-go"];
 const statuses: ReadonlyArray<UsageAccount["status"]> = ["fresh", "stale", "unavailable"];
 
 const toWindow = (value: unknown): UsageWindow | null => {

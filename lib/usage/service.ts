@@ -13,8 +13,6 @@ import {
   normalizeCodexResetCredits,
   normalizeCodexUsage,
   normalizeOpencodeGoUsage,
-  normalizeZaiUsage,
-  zaiPlan,
 } from "./normalize";
 import {
   RateLimitedError,
@@ -51,8 +49,7 @@ type RuntimeMetadata = {
 const providerOrder: Record<ProviderId, number> = {
   anthropic: 0,
   codex: 1,
-  zai: 2,
-  "opencode-go": 3,
+  "opencode-go": 2,
 };
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -75,22 +72,6 @@ const readEnvValue = async (path: string, name: string): Promise<string | null> 
 
   const value = line.slice(name.length + 1).trim();
   return value.replace(/^(['"])(.*)\1$/, "$2") || null;
-};
-
-const readZaiKey = async (path: string): Promise<string | null> => {
-  const content = await readText(path);
-  let inProvider = false;
-
-  for (const line of content.split(/\r?\n/)) {
-    const provider = line.match(/^\s*-\s+name:\s*["']?([^"']+)["']?\s*$/);
-    if (provider) inProvider = provider[1] === "zai-coding-plan";
-    if (!inProvider) continue;
-
-    const key = line.match(/^\s*-?\s*api-key:\s*["']?([^\s"']+)["']?\s*$/);
-    if (key) return key[1];
-  }
-
-  return null;
 };
 
 type ServiceState = {
@@ -427,28 +408,6 @@ const loadExternalAccounts = async (
               }),
             ),
           }),
-        }),
-      );
-    }
-  } catch {
-    // Optional provider: omission is reported by the empty card set rather than exposing file details.
-  }
-
-  const configPath = process.env.CPA_CONFIG_FILE ?? defaultPath("subs", "config.yaml");
-  try {
-    const key = await readZaiKey(configPath);
-    if (key) {
-      results.push(
-        accountResult({
-          provider: "zai",
-          account: "Coding Plan",
-          refreshIntervalMinutes: 5,
-          load: async () => {
-            const payload = await fetchJson("https://api.z.ai/api/monitor/usage/quota/limit", {
-              Authorization: key,
-            });
-            return { windows: normalizeZaiUsage(payload), plan: zaiPlan(payload) };
-          },
         }),
       );
     }

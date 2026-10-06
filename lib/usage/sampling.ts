@@ -42,7 +42,6 @@ const providerName = (provider: ProviderId) =>
   ({
     anthropic: "Claude",
     codex: "Codex",
-    zai: "Z.AI",
     "opencode-go": "OpenCode Go",
   })[provider];
 

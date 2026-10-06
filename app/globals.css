@@ -24,10 +24,6 @@
   --accent: #f28c3b;
 }
 
-[data-provider="zai"] {
-  --accent: #a78bfa;
-}
-
 [data-provider="opencode-go"] {
   --accent: #f5c542;
 }

@@ -12,7 +12,6 @@ Environment=PORT=8320
 Environment=CPA_BASE_URL=http://127.0.0.1:8317
 Environment=CPA_MANAGEMENT_KEY_FILE=%h/subs/management.key
 Environment=CPA_AUTH_DIR=%h/subs/auth
-Environment=CPA_CONFIG_FILE=%h/subs/config.yaml
 Environment=OPENCODE_GO_ENV_FILE=%h/.config/subs/opencode-go.env
 Environment=USAGE_CACHE_TTL_MS=300000
 # Persisted account samples: ~/.local/state/usage/state.json (exported as $STATE_DIRECTORY).
