@@ -32,7 +32,7 @@ describe("summaryWindow", () => {
     expect(summary?.remainingPercent).toBe(65);
   });
 
-  it("falls back to the first non-scoped window when there is no weekly window", () => {
+  it("uses the longest account-wide window when there is no weekly window", () => {
     const summary = summaryWindow(
       account("anthropic", [
         window("weekly-scoped-fable", "Fable weekly", 100, 10_080),
@@ -48,6 +48,17 @@ describe("summaryWindow", () => {
         account("anthropic", [window("weekly-scoped-fable", "Fable weekly", 100, 10_080)]),
       ),
     ).toBeUndefined();
+  });
+
+  it("uses OpenCode Go's monthly window, its longest", () => {
+    const summary = summaryWindow(
+      account("opencode-go", [
+        window("rolling", "5-hour", 100, 300),
+        window("weekly", "Weekly", 99, 10_080),
+        window("monthly", "Monthly", 32, 43_200),
+      ]),
+    );
+    expect(summary?.id).toBe("monthly");
   });
 
   it("keeps Codex on its weekly window", () => {
