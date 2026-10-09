@@ -71,15 +71,14 @@ const toResetCredits = (value: unknown): ResetCredits | null | undefined => {
 // nothing beyond the UsageAccount shape can ever reach (or come back from) disk.
 export const toPersistedAccount = (value: unknown): PersistedAccount | null => {
   if (!isRecord(value)) return null;
-  const { id, provider, providerName, account, plan, priority, primary, status } = value;
+  const { id, provider, providerName, account, plan, priority, status } = value;
   const { updatedAt, refreshIntervalMinutes, windows, message } = value;
   if (!isString(id) || !isString(providerName) || !isString(account)) return null;
   if (!providers.includes(provider as ProviderId)) return null;
   if (!statuses.includes(status as UsageAccount["status"])) return null;
   if (!isNullableString(plan) || !isNullableString(updatedAt) || !isNullableString(message))
     return null;
-  if (!isNumber(priority) || !isNumber(refreshIntervalMinutes) || typeof primary !== "boolean")
-    return null;
+  if (!isNumber(priority) || !isNumber(refreshIntervalMinutes)) return null;
   if (!Array.isArray(windows)) return null;
   const parsedWindows = windows.map(toWindow);
   if (parsedWindows.some((window) => window === null)) return null;
@@ -93,7 +92,6 @@ export const toPersistedAccount = (value: unknown): PersistedAccount | null => {
     account,
     plan,
     priority,
-    primary,
     status: status as UsageAccount["status"],
     updatedAt,
     refreshIntervalMinutes,

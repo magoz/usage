@@ -22,10 +22,10 @@ const window: UsageWindow = {
   durationMinutes: 10_080,
 };
 
-const snapshot = (statuses: ReadonlyArray<UsageAccount["status"]>): UsageSnapshot => ({
-  generatedAt: "2026-09-28T09:00:00.000Z",
+const snapshot = (
+  statuses: ReadonlyArray<UsageAccount["status"]>,
+): Pick<UsageSnapshot, "accounts"> => ({
   accounts: statuses.map((status) => ({ status }) as UsageAccount),
-  warnings: [],
 });
 
 const input = (load: AccountInput["load"]): AccountInput => ({

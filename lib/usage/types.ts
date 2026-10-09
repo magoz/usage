@@ -1,3 +1,5 @@
+import type { Routing } from "./routing";
+
 export type ProviderId = "anthropic" | "codex" | "opencode-go";
 
 export type UsageWindow = {
@@ -27,7 +29,6 @@ export type UsageAccount = {
   readonly account: string;
   readonly plan: string | null;
   readonly priority: number;
-  readonly primary: boolean;
   readonly status: "fresh" | "stale" | "unavailable";
   readonly updatedAt: string | null;
   readonly refreshIntervalMinutes: number;
@@ -41,4 +42,5 @@ export type UsageSnapshot = {
   readonly generatedAt: string;
   readonly accounts: ReadonlyArray<UsageAccount>;
   readonly warnings: ReadonlyArray<string>;
+  readonly routing: Routing;
 };

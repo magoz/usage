@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "./provider-icon";
+import { routingNote, type Routing } from "@/lib/usage/routing";
 import { summaryWindow } from "@/lib/usage/summary";
 import type { ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "@/lib/usage/types";
 
@@ -85,7 +86,12 @@ function PoolSummary({
   );
 }
 
-function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: number }>) {
+function AccountCard({
+  account,
+  routing,
+  now,
+}: Readonly<{ account: UsageAccount; routing: Routing; now: number }>) {
+  const note = routingNote(account, routing);
   const unavailable = account.status === "unavailable";
   const resets =
     (account.provider === "codex" || account.provider === "anthropic") &&
@@ -102,7 +108,7 @@ function AccountCard({ account, now }: Readonly<{ account: UsageAccount; now: nu
           <h2>{account.account}</h2>
           <p className="account-plan">
             <span className="account-plan-name">{account.plan ?? account.providerName}</span>
-            {account.primary ? <span className="account-note"> · pool first</span> : null}
+            {note ? <span className="account-note"> · {note}</span> : null}
             {account.status === "stale" ? (
               <span className="account-note">
                 {" "}
@@ -206,7 +212,12 @@ export function UsageDashboard({ initialSnapshot }: Readonly<{ initialSnapshot: 
           <section className="accounts" aria-label="Accounts">
             {pools.flatMap((pool) =>
               pool.accounts.map((account) => (
-                <AccountCard key={account.id} account={account} now={now} />
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  routing={snapshot.routing}
+                  now={now}
+                />
               )),
             )}
           </section>

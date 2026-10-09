@@ -13,7 +13,6 @@ const account = (overrides: Partial<UsageAccount> = {}): UsageAccount => ({
   account: "someone@example.com",
   plan: null,
   priority: 0,
-  primary: false,
   status: "fresh",
   updatedAt: "2026-09-28T09:00:00.000Z",
   refreshIntervalMinutes: 10,
@@ -137,6 +136,23 @@ describe("state store", () => {
     const loaded = await loadState(file);
     expect([...loaded.samples.keys()]).toEqual([valid.account.id]);
     expect(loaded.problem).toMatch(/1 malformed/);
+  });
+
+  it("loads state saved with the retired priority-based `primary` flag", async () => {
+    const file = join(directory, "state.json");
+    const legacy = sample();
+    await writeFile(
+      file,
+      JSON.stringify({
+        version: STATE_VERSION,
+        samples: {
+          [legacy.account.id]: { ...legacy, account: { ...legacy.account, primary: true } },
+        },
+      }),
+    );
+    const loaded = await loadState(file);
+    expect(loaded.problem).toBeNull();
+    expect(loaded.samples.get(legacy.account.id)?.account).not.toHaveProperty("primary");
   });
 });
 

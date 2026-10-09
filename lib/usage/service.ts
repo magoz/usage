@@ -21,8 +21,12 @@ import {
   type AccountInput,
   type AccountSample,
 } from "./sampling";
+import { activeAccounts, parsePins, type RoutableAccount, type Routing } from "./routing";
 import { loadState, saveState, stateFilePath } from "./state-store";
 import type { ActivityBucket, ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "./types";
+
+// A snapshot before routing is attached; routing is refreshed more often than usage.
+type UsageReport = Omit<UsageSnapshot, "routing">;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -77,8 +81,14 @@ const readEnvValue = async (path: string, name: string): Promise<string | null> 
 type ServiceState = {
   // Last reading per account, with the time its provider may next be queried.
   readonly samples: Map<string, AccountSample>;
-  cachedSnapshot: UsageSnapshot | null;
-  snapshotPromise: Promise<UsageSnapshot> | null;
+  cachedSnapshot: UsageReport | null;
+  snapshotPromise: Promise<UsageReport> | null;
+  // Auth file name → dashboard account, from the latest report; resolves routing pins.
+  accountsByAuthId: ReadonlyMap<string, RoutableAccount>;
+  cachedRouting: {
+    readonly at: number;
+    readonly pins: Promise<ReturnType<typeof parsePins>>;
+  } | null;
   restored: Promise<void> | null;
   dirty: boolean;
   persisting: Promise<void>;
@@ -97,6 +107,8 @@ const state: ServiceState = (globalThis.__usageDashboardState ??= {
   samples: new Map(),
   cachedSnapshot: null,
   snapshotPromise: null,
+  accountsByAuthId: new Map(),
+  cachedRouting: null,
   restored: null,
   dirty: false,
   persisting: Promise.resolve(),
@@ -219,13 +231,19 @@ const activityBuckets = (value: unknown): ReadonlyArray<ActivityBucket> => {
   });
 };
 
-const loadRuntimeMetadata = async (): Promise<Map<string, RuntimeMetadata>> => {
+const fetchManagement = async (path: string, timeoutMs?: number): Promise<unknown> => {
   const keyPath = process.env.CPA_MANAGEMENT_KEY_FILE ?? defaultPath("subs", "management.key");
   const baseUrl = process.env.CPA_BASE_URL ?? "http://127.0.0.1:8317";
   const managementKey = await readText(keyPath);
-  const payload = await fetchJson(`${baseUrl}/v0/management/auth-files`, {
-    Authorization: `Bearer ${managementKey}`,
-  });
+  return fetchJson(
+    `${baseUrl}/v0/management/${path}`,
+    { Authorization: `Bearer ${managementKey}` },
+    timeoutMs,
+  );
+};
+
+const loadRuntimeMetadata = async (): Promise<Map<string, RuntimeMetadata>> => {
+  const payload = await fetchManagement("auth-files");
   if (!isRecord(payload) || !Array.isArray(payload.files)) return new Map();
 
   const rows = payload.files.flatMap((row) => {
@@ -298,13 +316,6 @@ const loadNativeAccounts = async (
   credentials: ReadonlyArray<Credential>,
   runtime: Map<string, RuntimeMetadata>,
 ): Promise<ReadonlyArray<UsageAccount>> => {
-  const highestCodexPriority = Math.max(
-    ...credentials
-      .filter((credential) => credential.type === "codex")
-      .map((credential) => credential.priority),
-    0,
-  );
-
   return Promise.all(
     credentials.map((credential) => {
       const metadata = runtime.get(credential.fileName);
@@ -312,7 +323,6 @@ const loadNativeAccounts = async (
       const common = {
         account: credential.email,
         priority,
-        primary: credential.type === "codex" && priority === highestCodexPriority,
         activity: metadata?.activity ?? [],
       };
 
@@ -418,7 +428,10 @@ const loadExternalAccounts = async (
   return Promise.all(results);
 };
 
-const createSnapshot = async (): Promise<UsageSnapshot> => {
+const nativeProvider = (credential: Credential): ProviderId =>
+  credential.type === "claude" ? "anthropic" : "codex";
+
+const createSnapshot = async (): Promise<UsageReport> => {
   const warnings: string[] = [];
   let runtime = new Map<string, RuntimeMetadata>();
 
@@ -430,6 +443,12 @@ const createSnapshot = async (): Promise<UsageSnapshot> => {
 
   const authDirectory = process.env.CPA_AUTH_DIR ?? defaultPath("subs", "auth");
   const credentials = await loadCredentials(authDirectory);
+  state.accountsByAuthId = new Map(
+    credentials.map((credential) => {
+      const provider = nativeProvider(credential);
+      return [credential.fileName, { id: `${provider}:${credential.email}`, provider }];
+    }),
+  );
   const accounts = [
     ...(await loadNativeAccounts(credentials, runtime)),
     ...(await loadExternalAccounts(runtime)),
@@ -448,7 +467,32 @@ const createSnapshot = async (): Promise<UsageSnapshot> => {
   };
 };
 
+// Pins change only when an account runs out, but the badge should follow within a poll.
+const ROUTING_TTL_MS = 15_000;
+
+const loadPins = () => {
+  const now = Date.now();
+  const cached = state.cachedRouting;
+  if (cached && now - cached.at < ROUTING_TTL_MS) return cached.pins;
+  const pins = fetchManagement("plugins/sticky-fill-first/pins", 5_000).then(parsePins, () => null);
+  state.cachedRouting = { at: now, pins };
+  return pins;
+};
+
+const currentRouting = async (): Promise<Routing> => {
+  const pins = await loadPins();
+  return pins === null
+    ? { status: "unavailable" }
+    : { status: "available", accounts: activeAccounts(pins, state.accountsByAuthId) };
+};
+
 export const getUsageSnapshot = async (options?: { force?: boolean }): Promise<UsageSnapshot> => {
+  // Sequential: the report refreshes the auth-file map that routing pins resolve against.
+  const report = await getUsageReport(options);
+  return { ...report, routing: await currentRouting() };
+};
+
+const getUsageReport = async (options?: { force?: boolean }): Promise<UsageReport> => {
   const ttl = Number(process.env.USAGE_CACHE_TTL_MS ?? 300_000);
   const cached = state.cachedSnapshot;
   const age = cached ? Date.now() - Date.parse(cached.generatedAt) : Number.POSITIVE_INFINITY;

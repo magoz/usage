@@ -44,6 +44,14 @@ pnpm dev        # served through Portless
 pnpm verify     # format, typecheck, lint, tests, build
 ```
 
+## Active account
+
+When CLIProxyAPI runs the [sticky-fill-first](https://github.com/magoz/cpa-sticky-fill-first) scheduler plugin, each card for an account a pool is currently routed to says **active**. The data comes from the plugin's pins route (`GET /v0/management/plugins/sticky-fill-first/pins`, read with the same management key), refreshed at most every 15 seconds.
+
+- If a pool's models are split across accounts, the badge lists the models, e.g. `active · opus`.
+- `switching` means the active account just became unavailable and the pool is about to move.
+- No badge appears until the first request after a gateway restart, or at all when the plugin is not installed. The dashboard does not fall back to guessing from priority.
+
 ## Limit resets
 
 Account cards show banked "reset" offers (count and soonest expiry) for Codex and Claude. Neither is spent from here.

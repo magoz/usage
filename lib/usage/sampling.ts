@@ -18,7 +18,10 @@ export type AccountSample = {
 // so one upstream failure does not blank an account for the whole cache TTL.
 export const NON_FRESH_SNAPSHOT_TTL_MS = 60_000;
 
-export const snapshotTtlMs = (snapshot: UsageSnapshot, configuredTtlMs: number): number =>
+export const snapshotTtlMs = (
+  snapshot: Pick<UsageSnapshot, "accounts">,
+  configuredTtlMs: number,
+): number =>
   snapshot.accounts.every((account) => account.status === "fresh")
     ? configuredTtlMs
     : Math.min(configuredTtlMs, NON_FRESH_SNAPSHOT_TTL_MS);
@@ -50,7 +53,6 @@ export type AccountInput = {
   account: string;
   plan?: string | null;
   priority?: number;
-  primary?: boolean;
   refreshIntervalMinutes: number;
   activity?: ReadonlyArray<ActivityBucket>;
   load: () => Promise<{
@@ -77,7 +79,6 @@ export const resolveAccount = async (
     providerName: providerName(input.provider),
     account: input.account,
     priority: input.priority ?? 0,
-    primary: input.primary ?? false,
     refreshIntervalMinutes: input.refreshIntervalMinutes,
     activity: input.activity ?? [],
   };
