@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeAccounts,
+  activeFirst,
   modelLabel,
   parsePins,
   routingNote,
@@ -100,6 +101,20 @@ describe("routingNote", () => {
     const current = routing(pin("claude-9-removed@example.com.json", "claude-opus-5-5"));
     expect(current).toEqual({ status: "available", accounts: [] });
     expect(routingNote(claudeMain, current)).toBeNull();
+  });
+});
+
+describe("activeFirst", () => {
+  const accounts = [claudeSpare, claudeMain, codexMain];
+
+  it("moves routed accounts to the front and keeps the rest in order", () => {
+    const current = routing(pin("claude-1-main@example.com.json", "claude-opus-5-5"));
+    expect(activeFirst(accounts, current)).toEqual([claudeMain, claudeSpare, codexMain]);
+  });
+
+  it("keeps the order when nothing is routed or routing is unknown", () => {
+    expect(activeFirst(accounts, routing())).toEqual(accounts);
+    expect(activeFirst(accounts, { status: "unavailable" })).toEqual(accounts);
   });
 });
 

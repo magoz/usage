@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "./provider-icon";
-import { routingNote, type Routing } from "@/lib/usage/routing";
+import { activeFirst, routingNote, type Routing } from "@/lib/usage/routing";
 import { summaryWindow } from "@/lib/usage/summary";
 import type { ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "@/lib/usage/types";
 
@@ -189,7 +189,10 @@ export function UsageDashboard({ initialSnapshot }: Readonly<{ initialSnapshot: 
       providerOrder
         .map((provider) => ({
           provider,
-          accounts: snapshot.accounts.filter((account) => account.provider === provider),
+          accounts: activeFirst(
+            snapshot.accounts.filter((account) => account.provider === provider),
+            snapshot.routing,
+          ),
         }))
         .filter((pool) => pool.accounts.length > 0),
     [snapshot],

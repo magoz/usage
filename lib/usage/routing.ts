@@ -85,6 +85,19 @@ export const modelLabel = (model: string): string => {
   return words.length > 0 ? words.join("-") : model;
 };
 
+// Puts the accounts a pool is routed to first, keeping the existing order otherwise.
+export const activeFirst = <Account extends RoutableAccount>(
+  accounts: ReadonlyArray<Account>,
+  routing: Routing,
+): ReadonlyArray<Account> => {
+  if (routing.status !== "available") return accounts;
+  const active = new Set(routing.accounts.map((entry) => entry.accountId));
+  return [
+    ...accounts.filter((account) => active.has(account.id)),
+    ...accounts.filter((account) => !active.has(account.id)),
+  ];
+};
+
 // The note shown next to an account's plan, or null when it is not routed to.
 // Model names are listed only when a provider's routes are split across accounts.
 export const routingNote = (account: RoutableAccount, routing: Routing): string | null => {
