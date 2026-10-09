@@ -8,7 +8,7 @@ import type { ProviderId, UsageAccount, UsageSnapshot, UsageWindow } from "@/lib
 
 const POLL_INTERVAL_MS = 60_000;
 
-const providerOrder: ReadonlyArray<ProviderId> = ["codex", "anthropic", "opencode-go"];
+const providerOrder: ReadonlyArray<ProviderId> = ["anthropic", "codex", "opencode-go"];
 
 const percentText = (value: number) => (value > 0 && value < 1 ? "<1" : `${Math.round(value)}`);
 
